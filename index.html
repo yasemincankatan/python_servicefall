@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Messen, rechnen, prüfen – Python-Serviceprogramm</title>
+  <style>
+    :root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#172633;background:#f4f7f8}
+    *{box-sizing:border-box}body{margin:0}header{background:#103f52;color:white;padding:2rem max(1rem,calc((100vw - 1040px)/2));}
+    header h1{font-size:clamp(1.7rem,3vw,2.45rem);margin:.2rem 0 .6rem}header p{max-width:760px;line-height:1.5;margin:.3rem 0}
+    main{max-width:1040px;margin:auto;padding:1.2rem} .intro,.card{background:white;border:1px solid #d7e1e5;border-radius:12px;padding:1.15rem;margin-bottom:1rem;box-shadow:0 2px 7px #1233}
+    .intro{border-left:5px solid #e4aa3c}h2{font-size:1.3rem;margin:0 0 .5rem}p{line-height:1.5} .number{display:inline-grid;place-items:center;background:#dceef0;color:#103f52;border-radius:50%;width:2rem;height:2rem;margin-right:.5rem}
+    details{background:#f0f6f7;border-radius:6px;padding:.7rem;margin:.7rem 0}summary{cursor:pointer;font-weight:650}
+    label{display:block;font-weight:650;margin:.8rem 0 .3rem}textarea{display:block;width:100%;min-height:125px;resize:vertical;background:#172633;color:#f9fcff;border:2px solid #334a57;border-radius:8px;font:1rem/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;padding:.8rem;tab-size:4}
+    textarea:focus,button:focus-visible,summary:focus-visible{outline:3px solid #d99b2d;outline-offset:2px}
+    button{cursor:pointer;border:0;border-radius:7px;background:#08647a;color:white;font-size:1rem;font-weight:700;padding:.65rem 1rem;margin:.7rem .5rem .5rem 0}button:hover{background:#074e60}button:disabled{opacity:.55;cursor:wait}
+    .quiet{background:#e8eff1;color:#173947}.quiet:hover{background:#d6e3e7}
+    .output{white-space:pre-wrap;overflow-wrap:anywhere;min-height:2.7rem;background:#eef2f4;border:1px solid #ced9df;border-radius:7px;padding:.7rem;font: .95rem/1.45 ui-monospace,Consolas,monospace}
+    .feedback{font-weight:650;min-height:1.4rem}.good{color:#116044}.try{color:#934a10}.meta{font-size:.9rem;color:#415762}.status{font-weight:650}footer{max-width:1040px;margin:1rem auto 3rem;padding:0 1.2rem;color:#415762}
+  </style>
+</head>
+<body>
+<header>
+  <h1>Messen, rechnen, prüfen – dein erstes Python-Serviceprogramm</h1>
+  <p>Einführung in Python: Variablen, Datentypen und elektrotechnische Berechnungen</p>
+</header>
+<main>
+  <section class="intro">
+    <p><strong>So arbeitest du:</strong> Lies die Aufgabe auf dem Arbeitsblatt, schreibe hier deinen Code und klicke auf <strong>Ausführen</strong>. Vergleiche die Ausgabe und halte deine Antwort auf dem Blatt fest. Der Hinweis lässt sich bei Bedarf öffnen.</p>
+    <p class="meta">Der Python-Interpreter wird beim ersten Start geladen. Dafür ist eine Internetverbindung nötig. Deine Eingaben bleiben in diesem Browser gespeichert; es gibt keine Abgabe an die Lehrkraft.</p>
+    <p class="status" id="status" role="status">Python wird erst beim ersten Ausführen geladen.</p>
+  </section>
+  <div id="tasks"></div>
+</main>
+<footer>Python im Lernfeld 10 · Informationselektronik · 3. Ausbildungsjahr</footer>
+
+<script type="text/plain" id="worker-source">
+importScripts("https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.js");
+let engine;
+self.onmessage = async ({data}) => {
+  const {id, code, task} = data;
+  try {
+    if (!engine) { self.postMessage({id, loading:true}); engine = await loadPyodide(); }
+    engine.globals.set("_student_code", code);
+    engine.globals.set("_task_number", task);
+    const result = engine.runPython(`
+import contextlib, io, json, traceback
+_out = io.StringIO()
+_ns = {"__builtins__": __builtins__}
+_error = ""
+try:
+    with contextlib.redirect_stdout(_out), contextlib.redirect_stderr(_out):
+        exec(compile(_student_code, "<dein Code>", "exec"), _ns)
+except BaseException:
+    _error = traceback.format_exc(limit=2)
+_text = _out.getvalue()
+def _close(a, b):
+    return isinstance(a, (int, float)) and not isinstance(a, bool) and abs(a-b) < 0.000001
+def _check(n):
+    if n == 1: return (bool(_text.strip()), "Gib mindestens eine Idee mit print(...) aus.")
+    if n == 2: return ("Servicebericht gestartet" in _text and len(_text.strip().splitlines()) >= 2, "Gib die Startmeldung und deinen Namen in zwei Zeilen aus.")
+    if n == 3: return (all(_ns.get(k)==v for k,v in [("r1_ohm",1000),("r2_ohm",2200),("r3_ohm",220)]) and all(str(v) in _text for v in (1000,2200,220)), "Prüfe die drei Zahlenvariablen und ihre Ausgabe.")
+    if n == 4: return (bool(_text.strip()), "Zeige deine korrigierten Namen mit print(...) an und begründe sie auf dem Blatt.")
+    if n == 5: return (_close(_ns.get("r_gesamt_ohm"),3420) and "3420" in _text, "Erwartet werden 3420 Ohm in r_gesamt_ohm und in der Ausgabe.")
+    if n == 6: return (type(_ns.get("anzahl")) is int and type(_ns.get("spannung")) is float and type(_ns.get("meldung")) is str and type(_ns.get("pruefung_ok")) is bool, "Lege anzahl, spannung, meldung und pruefung_ok mit den vier passenden Datentypen an.")
+    if n == 7: return (_ns.get("messwert")==15 and _ns.get("referenz")==12 and "15 12" in _text, "Nach der Neuzuweisung bleiben messwert = 15 und referenz = 12.")
+    if n == 8: return (_close(_ns.get("leistung_w"),3) and "3" in _text, "Berechne leistung_w aus 12.0 V und 0.25 A und gib sie aus.")
+    if n == 9: return (_close(_ns.get("r_gesamt_ohm"),3420) and "3420" in _text, "Korrigiere den Variablennamen und den Datentyp; gib 3420 Ohm aus.")
+    if n == 10: return (_ns.get("geraet")=="Netzteil A" and _close(_ns.get("leistung_w"),3) and type(_ns.get("pruefung_ok")) is bool and all(x in _text for x in ("Netzteil A","12","0.25","3")), "Prüfe geraet, spannung_v, strom_a, leistung_w, pruefung_ok und die beschriftete Ausgabe.")
+    return (False, "Aufgabe unbekannt.")
+_ok, _tip = _check(_task_number) if not _error else (False, "Behebe zuerst die Fehlermeldung.")
+json.dumps({"output": _text, "error": _error, "ok": _ok, "tip": _tip}, ensure_ascii=False)
+`);
+    self.postMessage({id, result: JSON.parse(result)});
+  } catch(err) { self.postMessage({id, result:{output:"",error:String(err),ok:false,tip:"Python konnte nicht gestartet werden. Prüfe die Internetverbindung."}}); }
+};
+</script>
+<script>
+const exercises = [
+  {title:"Wo hilft Python im Service?", prompt:"Nenne zwei Anwendungen aus deinem Berufsalltag. Gib eine Idee mit print(...) aus; schreibe beide Ideen und ihre Eingaben/Ergebnisse auf das Arbeitsblatt.", hint:"Denke an Messwerte, Berechnungen oder ein kleines Prüfprotokoll. Text muss in Anführungszeichen stehen.", starter:'print("Messwerte dokumentieren")'},
+  {title:"Erste Textausgabe",prompt:"Gib die Startmeldung und darunter deinen Namen aus.",hint:'Jede print-Anweisung erzeugt eine neue Ausgabezeile. Verwende gerade Anführungszeichen: print("Text").',starter:'print("Servicebericht gestartet")\n# Ergänze hier die zweite Ausgabe.'},
+  {title:"Messwerte in Variablen speichern",prompt:"Speichere 1000, 2200 und 220 Ohm als r1_ohm, r2_ohm und r3_ohm. Gib alle drei Werte aus.",hint:'Beispiel: r1_ohm = 1000 und print("R1:", r1_ohm, "Ohm").',starter:'r1_ohm = 1000\nr2_ohm = 2200\nr3_ohm = 220\n# Gib die drei Werte aus.'},
+  {title:"Gültige Variablennamen",prompt:"Untersuche r1_ohm, 1_widerstand, R2, mess wert, print und spannung_v. Zeige die korrigierten Namen mit print(...) an und begründe zwei Korrekturen auf dem Blatt.",hint:"Namen dürfen nicht mit einer Ziffer anfangen, kein Leerzeichen enthalten und kein reserviertes Wort sein. print ist als Funktionsname ebenfalls ungünstig.",starter:'# Beispiel für einen gültigen Namen:\nspannung_v = 12.0\nprint("spannung_v")'},
+  {title:"Gesamtwiderstand einer Reihenschaltung",prompt:"Berechne r_gesamt_ohm aus den drei Widerständen und gib das Ergebnis mit Einheit aus.",hint:"In Reihe addieren sich die Widerstände. Nutze r_gesamt_ohm = r1_ohm + r2_ohm + r3_ohm.",starter:'r1_ohm = 1000\nr2_ohm = 2200\nr3_ohm = 220\n# Berechne r_gesamt_ohm und gib ihn aus.'},
+  {title:"Datentypen erkennen",prompt:"Lege anzahl = 3420, spannung = 3.3, meldung = \"Messung OK\" und pruefung_ok = True an. Gib ihre Typen mit type(...) aus.",hint:"int: ganze Zahl; float: Dezimalzahl mit Punkt; str: Text; bool: True oder False.",starter:'anzahl = 3420\nspannung = 3.3\nmeldung = "Messung OK"\npruefung_ok = True\n# Prüfe die Datentypen mit type(...).'},
+  {title:"Programmablauf verfolgen",prompt:"Sage die Ausgabe zuerst auf dem Blatt voraus und führe danach den Code aus.",hint:"referenz erhält zunächst eine Kopie des Wertes 12. Eine spätere Änderung von messwert ändert referenz nicht.",starter:'messwert = 12\nreferenz = messwert\nmesswert = 15\nprint(messwert, referenz)'},
+  {title:"Leistung berechnen",prompt:"Berechne leistung_w aus 12.0 V und 0.25 A. Gib das Ergebnis mit W aus. Teste danach 5.0 V und 0.40 A.",hint:"P = U · I. In Python lautet die Multiplikation *. Beim zweiten Test erwartest du 2.0 W.",starter:'spannung_v = 12.0\nstrom_a = 0.25\n# Berechne leistung_w und gib sie aus.'},
+  {title:"Fehler suchen und beheben",prompt:"Repariere den Code und gib den Gesamtwiderstand mit Einheit aus. Erkläre zwei Fehler auf dem Blatt.",hint:"Ein Variablenname darf nicht mit 1 beginnen. Die Zeichenkette \"2200\" muss für die Addition eine Zahl sein. Speichere das Ergebnis als r_gesamt_ohm.",starter:'1r_ohm = 1000\nr2_ohm = "2200"\nr3_ohm = 220\nprint("Gesamt:", 1r_ohm + r2_ohm + r3_ohm, "Ohm")'},
+  {title:"Mini-Projekt Messprotokoll",prompt:"Erstelle ein lesbares Protokoll für Netzteil A mit 12.0 V und 0.25 A. Berechne leistung_w, setze pruefung_ok auf True oder False und gib alles mit Einheiten aus. Teste dann neue Messwerte.",hint:"Nutze geraet = \"Netzteil A\", leistung_w = spannung_v * strom_a und mehrere print-Anweisungen. Der erste Test liefert 3.0 W.",starter:'geraet = "Netzteil A"\nspannung_v = 12.0\nstrom_a = 0.25\n# Ergänze Berechnung, bool-Variable und Ausgabe.'}
+];
+const root=document.getElementById("tasks"), status=document.getElementById("status");
+let worker, sequence=0, pending=new Map(), loaded=false;
+function startWorker(){
+  if(worker) worker.terminate();
+  const url=URL.createObjectURL(new Blob([document.getElementById("worker-source").textContent],{type:"text/javascript"}));
+  worker=new Worker(url); URL.revokeObjectURL(url);
+  worker.onmessage=({data})=>{
+    if(data.loading){status.textContent="Python wird geladen …";return}
+    const entry=pending.get(data.id);if(!entry)return;
+    clearTimeout(entry.timeout);pending.delete(data.id);
+    const {output,feedback,button}=entry;button.disabled=false;
+    output.textContent=data.result.error || data.result.output || "(keine Ausgabe – verwende print(...))";
+    loaded=true;
+    feedback.textContent=data.result.error ? "Der Code enthält einen Fehler." : data.result.ok ? ([1,4].includes(entry.task) ? "Code läuft. Prüfe deine inhaltliche Antwort auf dem Arbeitsblatt." : "Prüfung bestanden. Übertrage die Erkenntnis auf dein Arbeitsblatt.") : data.result.tip;
+    feedback.className="feedback "+(data.result.ok?"good":"try");
+    status.textContent="Python ist bereit.";
+  };
+  worker.onerror=()=>{status.textContent="Python konnte nicht geladen werden. Prüfe die Internetverbindung und lade die Seite neu.";for(const e of pending.values()){e.button.disabled=false;clearTimeout(e.timeout)}pending.clear()};
+}
+startWorker();
+exercises.forEach((e,i)=>{
+  const section=document.createElement("section");section.className="card";section.id="aufgabe-"+(i+1);
+  const title=document.createElement("h2");title.innerHTML='<span class="number">'+(i+1)+'</span>';title.append(document.createTextNode(e.title));
+  const prompt=document.createElement("p");prompt.textContent=e.prompt;
+  const details=document.createElement("details"),summary=document.createElement("summary");summary.textContent="Hinweis anzeigen";
+  details.append(summary,document.createTextNode(e.hint));
+  const label=document.createElement("label");label.textContent="Dein Python-Code";label.htmlFor="code-"+i;
+  const editor=document.createElement("textarea");editor.id=label.htmlFor;editor.spellcheck=false;editor.value=localStorage.getItem("python-lf10-"+i)??e.starter;
+  editor.addEventListener("input",()=>localStorage.setItem("python-lf10-"+i,editor.value));
+  const button=document.createElement("button");button.textContent="▶ Ausführen";button.type="button";
+  const reset=document.createElement("button");reset.textContent="Vorlage wiederherstellen";reset.type="button";reset.className="quiet";
+  reset.addEventListener("click",()=>{editor.value=e.starter;localStorage.setItem("python-lf10-"+i,e.starter);editor.focus()});
+  const outLabel=document.createElement("label");outLabel.textContent="Ausgabe / Fehlermeldung";
+  const output=document.createElement("pre");output.className="output";output.textContent="Noch nicht ausgeführt.";output.setAttribute("aria-live","polite");
+  const feedback=document.createElement("p");feedback.className="feedback";feedback.setAttribute("aria-live","polite");
+  button.addEventListener("click",()=>{
+    if(button.disabled)return;
+    const id=++sequence;button.disabled=true;output.textContent="Wird ausgeführt …";feedback.textContent="";
+    const timeout=setTimeout(()=>{worker.terminate();worker=null;loaded=false;for(const p of pending.values()){p.button.disabled=false;p.output.textContent="Ausführung abgebrochen.";p.feedback.textContent="Der Code benötigt zu lange. Prüfe insbesondere Schleifen oder die Internetverbindung.";p.feedback.className="feedback try"}pending.clear();status.textContent="Python wird für den nächsten Versuch neu geladen.";startWorker()},loaded?12000:60000);
+    pending.set(id,{output,feedback,button,task:i+1,timeout});
+    worker.postMessage({id,code:editor.value,task:i+1});
+  });
+  section.append(title,prompt,details,label,editor,button,reset,outLabel,output,feedback);root.append(section);
+});
+</script>
+</body>
+</html>
